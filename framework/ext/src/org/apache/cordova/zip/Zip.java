@@ -1,27 +1,21 @@
 package org.apache.cordova.zip;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import javax.microedition.io.Connection;
 import javax.microedition.io.Connector;
-import javax.microedition.io.HttpConnection;
 import javax.microedition.io.file.FileConnection;
 
 import org.apache.cordova.api.Plugin;
 import org.apache.cordova.api.PluginResult;
 import org.apache.cordova.file.File;
 
-import org.apache.cordova.util.FileUtils;
-
 import org.apache.cordova.json4j.JSONObject;
 import org.apache.cordova.json4j.JSONArray;
 import org.apache.cordova.json4j.JSONException;
 
-import net.rim.device.api.ui.UiApplication;
-import net.sf.zipme.ZipArchive;
 import net.sf.zipme.ZipException;
 import net.sf.zipme.ZipInputStream;
 import net.sf.zipme.ZipEntry;
@@ -30,8 +24,7 @@ public class Zip extends Plugin {
 
 	private static final String LOG_TAG = "Zip";
 	private static final String DIRECTORY_SEPARATOR = "/";
-	private static final int BUFFER_SIZE = 2048;
-	private String url;
+	//private static final int BUFFER_SIZE = 2048;
 
 	//private List<String> processedEntities = new ArrayList<String>();
 
@@ -100,108 +93,118 @@ public class Zip extends Plugin {
 		}
 	}
 
-//Fetch Zip File
-    public InputStream readRarFile(String url) {
-        javax.microedition.io.Connection c = null;
-        java.io.InputStream is = null;
-        try {
-            c = javax.microedition.io.Connector.open(url, javax.microedition.io.Connector.READ);
-            javax.microedition.io.file.FileConnection fc = (javax.microedition.io.file.FileConnection) c;
+	/**
+	* Read the compressed file and returns InputStream obtained.
+	*
+	* @param zipFile		Zip/Rar filename to read.
+	* @return				InputStream containing zip file data.
+	*/
+    public InputStream readRarFile(String zipFile) 
+    {
+    	InputStream is = null;
+    	
+        try 
+        {
+        	Connection c = javax.microedition.io.Connector.open(zipFile, Connector.READ);
+            FileConnection fc = (FileConnection) c;
             is = fc.openInputStream();
-         } catch (Exception e) {
-            System.out.println("Error in reding the File");
-       }
+        } 
+        catch (Exception e) 
+        {
+            System.out.println(LOG_TAG + " - Error in reding the File");
+        }
+        
         return is;
     }
     
-    //Load  Zip or Rar File after Extraction
-    public boolean writeFile(ZipInputStream zis, String path, byte[] b, String URL2) {
-    	URL2 = "file:///SDCard/";
-        try {
-            System.out.println("filename:" + path);
-         
-            String url = URL2 + path;
-            System.out.println("url:" + url);
-            FileConnection conn = null;
-			try {
-                System.out.println("Enter the writing process");
-                conn = (FileConnection) javax.microedition.io.Connector.open(url);
-                // Write the File
-                if (url.startsWith("/")) {
-                    boolean warnedMkDir = false;
-					if (!warnedMkDir) {
-                        System.out.println("Ignoring absolute paths");
-                    }
-                    warnedMkDir = true;
-                    url = url.substring(1);
-                }
-                // if a directory, just return. We mkdir for every file,
-                // since some widely-used Zip creators don't put out
-                // any directory entries, or put them in the wrong place.
-                /*if (url.endsWith("/")) {
-                    return false;
-                }*/
-                // Else must be a file; open the file for output
-                // Get the directory part.
-                System.out.println("Processing file: " + url);
-                int ix = url.lastIndexOf('/');
-                System.out.println("Processing parts of file:" + ix);
+	/**
+	* Write file or dir in target path.
+	*
+	* @param zis		Zip/Rar filename to read.
+	* @param path		Path of the current item to write.
+	* @param b			Array of bytes to write.
+	* @param target		Parent path to write the current item.
+	* @return			True or false if file/dir could be written.
+	*/
+    public boolean writeFile(ZipInputStream zis, String path, byte[] b, String target) 
+    {
+        String targetToWrite = target + path;
+        FileConnection conn = null;
+        
+		try 
+		{
+            System.out.println(LOG_TAG + " - Processing file: " + targetToWrite);
+            
+            // Check if a filename we want to process is a DIRECTORY or a FILE
+            if (path.charAt(path.length() - 1) == '/')
+            {
+            	// Process DIRECTORY
+                System.out.println(LOG_TAG + " - dirname: " + targetToWrite);
+                String dirsMade = "";
 
-                if (ix > 0) {
-                    System.out.println("Entering ix...");
-
-                    String dirName = url.substring(0, ix);
+                if (!dirsMade.equals(targetToWrite)) 
+                {
+                    conn = (FileConnection) Connector.open(targetToWrite);
                     
-                    System.out.println("dirname: " + dirName);
-
-                    String dirsMade = "";
-					//    if (!dirsMade.contains(dirName))
-                    if (!dirsMade.equals(dirName)) {
-                        FileConnection conn1 = (FileConnection) javax.microedition.io.Connector.open(dirName+"/");
-                       // If it already exists as a dir, don't do anything
-                        if (!(conn1.exists() && conn1.isDirectory())) {
-                        	System.out.println("Creating dir: " + dirName);
-                            conn1.mkdir();
-                            //createFiles(zis, conn1, b);
-                            // Try to create the directory, warn if it fails
-                            System.out.println("Create Directory: " + dirName);
-                            if (!(conn1.isDirectory())) {
-                                System.err.println("Warning: unable to mkdir " + dirName);
-                            }
-                            dirsMade = dirName;
-                        }
+                    // If it already exists as a dir, don't do anything
+                    if (!(conn.exists() && conn.isDirectory())) 
+                    {
+                    	System.out.println(LOG_TAG + " - Creating dir: " + targetToWrite);
+                    	conn.mkdir();
+                    	System.out.println(LOG_TAG + " - Created directory: " + targetToWrite);
+                        
+                    	dirsMade = targetToWrite;
                     }
-               }
-                createFiles(zis, conn, b);
-            } catch (IOException e) {
-                // error
-            	System.out.println("Exception creating dir: " + e.getMessage());
-            } catch (SecurityException e) {
-                // no permission to create/write
-            	System.out.println("Exception c/w creating dir: " + e.getMessage());
+
+                    conn.close();
+                }
             }
-            conn.close();
-            return true;
-        } catch (Exception e) {
-            System.out.println(e.toString());
+            else
+            {
+            	// Process FILES
+            	conn = (FileConnection) Connector.open(targetToWrite);
+
+        		if (!conn.exists() && !conn.isDirectory()) 
+        		{
+                    conn.create();
+                } 
+        		else 
+        		{
+                    conn.truncate(0);
+                }
+
+        		// Create file knowing size of array of bytes
+                OutputStream os = conn.openOutputStream();
+                
+                int count = 0;
+        		while ((count = zis.read(b, 0, b.length)) != -1) 
+        		{
+                    os.write(b, 0, count);
+                }
+        		
+                os.flush();
+            	conn.close();
+            }
+        } 
+		catch (IOException e) 
+		{
+            // error
+        	System.out.println(LOG_TAG + " - Exception creating dir: " + e.getMessage());
+        } 
+		catch (SecurityException e) 
+		{
+            // no permission to create/write
+        	System.out.println(LOG_TAG + " - Exception c/w creating dir: " + e.getMessage());
+        }
+        catch (Exception e) 
+        {
+            System.out.println(LOG_TAG + " - Generic exception: " + e.toString());
             return false;
         } 
+        
+		return true;
     }
-	
-    private void createFiles(ZipInputStream zis, FileConnection conn, byte[] b) throws IOException {
-		if (!conn.exists() && !conn.isDirectory()) {
-            conn.create();
-        } else {
-            conn.truncate(0);
-        }
-        OutputStream os = conn.openOutputStream();
-        //Write Files
-        int count;
-		while ((count = zis.read(b, 0, b.length)) != -1) {
-            os.write(b, 0, count);
-        }
-        os.flush();
-    }
+
 	/**
 	* Identifies if action to be executed returns a value and should be run synchronously.
 	*
@@ -274,135 +277,39 @@ public class Zip extends Plugin {
 	*/
 	private JSONObject uncompress(String source, String target, String callbackId) throws JSONException, InterruptedException
 	{
-		/*System.out.println("uncompress: " + source + " to " + target);
-
-		List<String> extractedEntities = new ArrayList<String>();
-
-		source = FileUtils.stripFileProtocol(source);
-		target = FileUtils.stripFileProtocol(target);
-		System.out.println( "stripped source: " + source);
-		System.out.println( "stripped target: " + target);
-
-		File sourceFile = new File(source);
-		File targetFile = new File(target);
-
-
-		ZipFile zipFile = new ZipFile(sourceFile);
-		Enumeration zipEntities = zipFile.entries();
-		ArrayList zipList = Collections.list(zipEntities);
-        int totalEntities = zipList.size();
-
-		String targetPath = "";
-
-		JSONObject lastMsg = new JSONObject();
-
-		// TODO: Handle possible cancelation.
-		Iterator it = zipList.iterator();
-		while (it.hasNext()) {
-
-			ZipEntry entity = (ZipEntry) it.next();
-			System.out.println( "Current entity: " + entity.getName());
-
-			targetPath = targetFile.getAbsolutePath() + DIRECTORY_SEPARATOR + entity.getName();
-			File currentTarget = new File(targetPath);
-			File currentTargetParent = currentTarget.getParentFile();
-			currentTargetParent.mkdirs();
-
-			if (!entity.isDirectory()) {
-
-				BufferedInputStream is = new BufferedInputStream(zipFile.getInputStream(entity));
-				FileOutputStream fos = new FileOutputStream(currentTarget);
-				BufferedOutputStream dest = new BufferedOutputStream(fos, BUFFER_SIZE);
-
-				int currentByte;
-				byte data[] = new byte[BUFFER_SIZE];
-				while ((currentByte = is.read(data, 0, BUFFER_SIZE)) != -1) {
-					dest.write(data, 0, currentByte);
-				}
-				dest.flush();
-				dest.close();
-				is.close();
-
-				this.processedEntities.add(currentTarget.getAbsolutePath());
-				lastMsg = this.publish(currentTarget, totalEntities, callbackId);
-			}
-
-		}
-
-		return lastMsg;*/
-		
-		
-        this.url=source;
-        FileConnection con = null;
-        String root = null;
-		//Create RAR  Directory
-        try {
-            //String URL = "http://www.litio.org/tmp/test.zip";
-        	String URL = "file:///SDCard/";
-            String rootDir = "file:///SDCard/";
-            //  String  rootDir = "file:///e:/Other/rar/epub.txt";
-            System.out.println("Create directory:Entry" + URL);
-            String name = "/test/";
-            URL.endsWith("/");
-            
-            root = URL + name;
-            System.out.println("Directory to create: " + root);
-            
-            con = (FileConnection) javax.microedition.io.Connector.open(root);
-            FileConnection con1 = (FileConnection) javax.microedition.io.Connector.open(rootDir);
-            
-            if (!(con.exists() && con.isDirectory())) 
-            {
-                con.mkdir();
-                System.out.println("Create Directory");
-                rootDir = con.getName();
-                // Try to create the directory, warn if it fails
-                System.out.println("Creating Directory: " + rootDir);
-            } 
-            else 
-            {
-                System.out.println("Always Available");
-            }
-            
-            if (!(con1.exists() && con1.isDirectory())) 
-            {
-                con1.create();
-            }
-            
-            root = URL + name;
-            System.out.println("Root: " + root);
-        } 
-        catch (Exception e) 
-        {
-        	System.out.println("Excepcion creando directorios");
-        }
-        
-        System.out.println("Root: " + root);
-        
+		// 'target' would be 'file:///SDCard/test'
         int entries = 0;
         
-		//Rar or Zip File  Extraction
-        try {
-            InputStream is = readRarFile(this.url);
+        try 
+        {
+    		//Rar or Zip File  Extraction
+            InputStream is = readRarFile(source);
             ZipInputStream zis = new ZipInputStream(is);
             ZipEntry ze;
             
-            while ((ze = zis.getNextEntry()) != null) {
+            while ((ze = zis.getNextEntry()) != null) 
+            {
                 int i = (int) ze.getSize();
                 byte[] b = new byte[i];
-                //Zip File Readinn Process
-                writeFile(zis, ze.getName(), b, root);
+                
+                // Write File or Dir, calling our function
+                writeFile(zis, ze.getName(), b, target);
                 zis.closeEntry();
                 entries++;
             }
             zis.close();
-        } catch (Exception e) {
+        } 
+        catch (Exception e) 
+        {
           e.printStackTrace();
         }
 		
 		
 		JSONObject lastMsg = new JSONObject();
 		lastMsg.put("entries", entries);
+
+		System.out.println(LOG_TAG + " - Processed entries: " + entries);
+		
 		return lastMsg;
 	}
 
