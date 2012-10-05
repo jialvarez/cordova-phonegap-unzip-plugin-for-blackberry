@@ -18,6 +18,7 @@ import org.apache.cordova.json4j.JSONException;
 
 import net.sf.zipme.ZipException;
 import net.sf.zipme.ZipInputStream;
+import net.sf.zipme.ZipArchive;
 import net.sf.zipme.ZipEntry;
 
 public class Zip extends Plugin {
@@ -105,7 +106,7 @@ public class Zip extends Plugin {
     	
         try 
         {
-        	Connection c = javax.microedition.io.Connector.open(zipFile, Connector.READ);
+        	Connection c = Connector.open(zipFile, Connector.READ);
             FileConnection fc = (FileConnection) c;
             is = fc.openInputStream();
         } 
@@ -282,9 +283,17 @@ public class Zip extends Plugin {
         
         try 
         {
-    		//Rar or Zip File  Extraction
+        	// Get number of entries
+            /*InputStream is = readRarFile(source);
+        	ZipArchive za = new ZipArchive(is);
+        	System.out.println("Zip file size: " + za.size());
+        	is.close();*/
+            
+    		//Prepare for Rar or Zip File extraction
             InputStream is = readRarFile(source);
             ZipInputStream zis = new ZipInputStream(is);
+            //is.close();
+            
             ZipEntry ze;
             
             while ((ze = zis.getNextEntry()) != null) 
@@ -297,6 +306,7 @@ public class Zip extends Plugin {
                 zis.closeEntry();
                 entries++;
             }
+            
             zis.close();
         } 
         catch (Exception e) 
