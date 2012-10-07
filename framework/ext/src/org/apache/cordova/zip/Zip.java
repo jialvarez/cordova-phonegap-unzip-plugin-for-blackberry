@@ -3,6 +3,7 @@ package org.apache.cordova.zip;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Enumeration;
 
 import javax.microedition.io.Connection;
 import javax.microedition.io.Connector;
@@ -15,10 +16,11 @@ import org.apache.cordova.file.File;
 import org.apache.cordova.json4j.JSONObject;
 import org.apache.cordova.json4j.JSONArray;
 import org.apache.cordova.json4j.JSONException;
+import org.apache.cordova.util.FileUtils;
 
+import net.sf.zipme.ZipArchive;
 import net.sf.zipme.ZipException;
 import net.sf.zipme.ZipInputStream;
-import net.sf.zipme.ZipArchive;
 import net.sf.zipme.ZipEntry;
 
 public class Zip extends Plugin {
@@ -47,11 +49,7 @@ public class Zip extends Plugin {
 
 			if (action.equals("info")) {
 
-				JSONObject zipInfo;
-				
-				zipInfo = this.info(source);
-
-				return new PluginResult(status, zipInfo.toString());
+				return new PluginResult(status, this.info(source));
 
 			} else if (action.equals("compress")) {
 
@@ -99,20 +97,28 @@ public class Zip extends Plugin {
 	*
 	* @param zipFile		Zip/Rar filename to read.
 	* @return				InputStream containing zip file data.
+	 * @throws IOException 
 	*/
-    public InputStream readRarFile(String zipFile) 
+    public InputStream readRarFile(String zipFile) throws IOException 
     {
     	InputStream is = null;
+    	Connection c = null;
+    	FileConnection fc = null;
     	
         try 
         {
-        	Connection c = Connector.open(zipFile, Connector.READ);
-            FileConnection fc = (FileConnection) c;
+        	c = Connector.open(zipFile, Connector.READ);
+        	fc = (FileConnection) c;
             is = fc.openInputStream();
         } 
         catch (Exception e) 
         {
             System.out.println(LOG_TAG + " - Error in reding the File");
+        }
+        finally
+        {
+        	c.close();
+        	fc.close();
         }
         
         return is;
@@ -132,19 +138,19 @@ public class Zip extends Plugin {
         String targetToWrite = target + path;
         FileConnection conn = null;
         
-		try 
-		{
-            System.out.println(LOG_TAG + " - Processing file: " + targetToWrite);
-            
-            // Check if a filename we want to process is a DIRECTORY or a FILE
-            if (path.charAt(path.length() - 1) == '/')
-            {
-            	// Process DIRECTORY
-                System.out.println(LOG_TAG + " - dirname: " + targetToWrite);
-                String dirsMade = "";
+        System.out.println(LOG_TAG + " - Processing file: " + targetToWrite);
+        
+        // Check if a filename we want to process is a DIRECTORY or a FILE
+        if (path.charAt(path.length() - 1) == '/')
+        {
+        	// Process DIRECTORY
+            System.out.println(LOG_TAG + " - dirname: " + targetToWrite);
+            String dirsMade = "";
 
-                if (!dirsMade.equals(targetToWrite)) 
-                {
+            if (!dirsMade.equals(targetToWrite)) 
+            {
+            	try
+            	{
                     conn = (FileConnection) Connector.open(targetToWrite);
                     
                     // If it already exists as a dir, don't do anything
@@ -156,13 +162,42 @@ public class Zip extends Plugin {
                         
                     	dirsMade = targetToWrite;
                     }
-
-                    conn.close();
+            	}
+        		catch (IOException e) 
+        		{
+                    // error
+                	System.out.println(LOG_TAG + " - Exception creating dir: " + e.getMessage());
+                } 
+        		catch (SecurityException e) 
+        		{
+                    // no permission to create/write
+                	System.out.println(LOG_TAG + " - Exception c/w creating dir: " + e.getMessage());
                 }
+                catch (Exception e) 
+                {
+                    System.out.println(LOG_TAG + " - Generic exception: " + e.toString());
+                    return false;
+                }
+            	finally
+            	{
+            		try
+            		{
+            			System.out.println(LOG_TAG + " - Closing connection");
+            			conn.close();
+            		}
+            		catch (IOException e) 
+            		{
+            			System.out.println(LOG_TAG + " - Exception closing connection: " + e.toString());
+            			return false;
+            	    } 
+            	}
             }
-            else
-            {
-            	// Process FILES
+        }
+        else
+        {
+        	// Process FILES
+        	try
+        	{
             	conn = (FileConnection) Connector.open(targetToWrite);
 
         		if (!conn.exists() && !conn.isDirectory()) 
@@ -184,26 +219,38 @@ public class Zip extends Plugin {
                 }
         		
                 os.flush();
-            	conn.close();
+        	}
+    		catch (IOException e) 
+    		{
+                // error
+            	System.out.println(LOG_TAG + " - Exception creating file: " + e.getMessage());
+            } 
+    		catch (SecurityException e) 
+    		{
+                // no permission to create/write
+            	System.out.println(LOG_TAG + " - Exception c/w creating file: " + e.getMessage());
             }
-        } 
-		catch (IOException e) 
-		{
-            // error
-        	System.out.println(LOG_TAG + " - Exception creating dir: " + e.getMessage());
-        } 
-		catch (SecurityException e) 
-		{
-            // no permission to create/write
-        	System.out.println(LOG_TAG + " - Exception c/w creating dir: " + e.getMessage());
+            catch (Exception e) 
+            {
+                System.out.println(LOG_TAG + " - Generic exception: " + e.toString());
+                return false;
+            }
+        	finally
+        	{
+        		try
+        		{
+        			System.out.println(LOG_TAG + " - Closing connection");
+        			conn.close();
+        		}
+        		catch (IOException e) 
+        		{
+        			System.out.println(LOG_TAG + " - Exception closing connection: " + e.toString());
+        			return false;
+        	    } 
+        	}
         }
-        catch (Exception e) 
-        {
-            System.out.println(LOG_TAG + " - Generic exception: " + e.toString());
-            return false;
-        } 
-        
-		return true;
+
+        return true;
     }
 
 	/**
@@ -232,7 +279,7 @@ public class Zip extends Plugin {
 	* @param source		The action to execute.
 	* @return		A ZipFileEntry structure.
 	*/
-	private JSONObject info(String source) throws JSONException, ZipException, IOException {
+	private String info(String source) throws JSONException, ZipException, IOException {
 
 		/*source = FileUtils.stripFileProtocol(source);
 
@@ -249,11 +296,16 @@ public class Zip extends Plugin {
 		zipInfo.put("entries", zipFile.size());
 		
 		return zipInfo;*/
-		
-		//int entries = this.zip("http://www.litio.org/tmp/test.zip");
+
+        int entries = this.getEntries(source);
+        
 		JSONObject zipInfo = new JSONObject();
-		zipInfo.put("entries", 103);
-		return zipInfo;
+		
+		zipInfo.put("entries", entries);
+		zipInfo.put("name", source.substring(source.lastIndexOf('/'), source.length()));
+		zipInfo.put("fullPath", source);
+		
+		return "{\"entries\":\"" + entries + "\", \"fullPath\":\"" + source + "\", \"name\":\"" + source.substring(source.lastIndexOf('/'), source.length()) + "\"}";
 	}
 
 	/**
@@ -269,6 +321,30 @@ public class Zip extends Plugin {
 		return false;
 	}
 
+	private int getEntries(String source) throws IOException
+	{
+		InputStream is = null;
+		int entries = 0;
+		try 
+        {
+			is = readRarFile(source);
+			ZipArchive za = new ZipArchive(is);
+			entries = za.size();
+			System.out.println("Zip file size: " + entries);
+			
+        }
+		catch (Exception e) 
+        {
+          e.printStackTrace();
+        }
+		finally
+		{
+			is.close();
+		}
+		
+		return entries;
+	}
+	
 	/**
 	* Uncompress.
 	*
@@ -279,22 +355,20 @@ public class Zip extends Plugin {
 	private JSONObject uncompress(String source, String target, String callbackId) throws JSONException, InterruptedException
 	{
 		// 'target' would be 'file:///SDCard/test'
-        int entries = 0;
+        int total_entries = 0;
+        int current_entries = 0;
+        JSONObject lastMsg = null;
         
         try 
         {
-        	// Get number of entries
-            /*InputStream is = readRarFile(source);
-        	ZipArchive za = new ZipArchive(is);
-        	System.out.println("Zip file size: " + za.size());
-        	is.close();*/
-            
-    		//Prepare for Rar or Zip File extraction
+        	total_entries = getEntries(source);
+        	System.out.println("Zip size: " + String.valueOf(total_entries));
+        	
+    		//Rar or Zip File  Extraction
             InputStream is = readRarFile(source);
             ZipInputStream zis = new ZipInputStream(is);
-            //is.close();
-            
             ZipEntry ze;
+            File zfile;
             
             while ((ze = zis.getNextEntry()) != null) 
             {
@@ -304,9 +378,12 @@ public class Zip extends Plugin {
                 // Write File or Dir, calling our function
                 writeFile(zis, ze.getName(), b, target);
                 zis.closeEntry();
-                entries++;
+                current_entries++;
+                
+                zfile = new File(ze.getName());
+                
+                lastMsg = this.publish(ze.getName(), current_entries, total_entries, callbackId);
             }
-            
             zis.close();
         } 
         catch (Exception e) 
@@ -315,21 +392,22 @@ public class Zip extends Plugin {
         }
 		
 		
-		JSONObject lastMsg = new JSONObject();
-		lastMsg.put("entries", entries);
-
-		System.out.println(LOG_TAG + " - Processed entries: " + entries);
-		
 		return lastMsg;
 	}
 
-	private JSONObject publish(File file, int totalEntities, String callbackId) throws JSONException, InterruptedException
+	private JSONObject publish(String file, int currentEntities, int totalEntities, String callbackId) throws JSONException, InterruptedException
 	{
 		/*JSONObject msg = new JSONObject();
+		int enum_size = 0;
+		
         boolean completed = totalEntities == this.processedEntities.size();
 
 		// Using FileUtils::getEntry to create an file info structure.
-		FileUtils fu = new FileUtils();
+		for (Enumeration en = FileUtils.listDirectory(file); en.hasMoreElements();)
+		{
+			enum_size++;
+		}
+		
 		msg = fu.getEntry(file);
 
 		// Add new params for progress calculation.
@@ -345,11 +423,30 @@ public class Zip extends Plugin {
 		    success(result, callbackId);
         }
 
-		Thread.sleep(100);
+		Thread.sleep(100);*/
+		JSONObject msg = new JSONObject();
+		msg.put("progress", currentEntities / totalEntities);
+		
+		if (totalEntities == currentEntities)
+		{
+			msg.put("completed", true);
+		}
+		else
+		{
+			msg.put("completed", false);
+		}
 
-		return msg;*/
-		JSONObject lastMsg = new JSONObject();
-		lastMsg.put("yeah", "yeah");
-		return lastMsg;
+		PluginResult result = new PluginResult(PluginResult.Status.OK, msg.toString());
+		result.setKeepCallback(true);
+
+        // Avoid to send the message "uncompress completed" twice.
+        // This message is sended in the execute method.
+        if (totalEntities == currentEntities) {
+		    success(result, callbackId);
+        }
+
+		Thread.sleep(100);
+		
+		return msg;
 	}
 }
