@@ -93,6 +93,46 @@ public class Zip extends Plugin {
 	}
 
 	/**
+	* Info.
+	*
+	* @param source		The action to execute.
+	* @return		A ZipFileEntry structure.
+	*/
+	private JSONObject info(String source) throws JSONException, ZipException, IOException {
+
+		/*source = FileUtils.stripFileProtocol(source);
+
+		File sourceFile = new File(source);
+		ZipFile zipFile = new ZipFile(sourceFile);
+		
+		ZipFile a = new ZipFile(source);
+
+		JSONObject zipInfo = new JSONObject();
+
+		// Using FileUtils::getEntry to create an file info structure.
+		zipInfo = fu.getEntry(sourceFile);
+
+		zipInfo.put("entries", zipFile.size());
+		
+		return zipInfo;*/
+
+        int entries = this.getEntries(source);
+        
+		JSONObject zipInfo = new JSONObject();
+		
+		zipInfo.put("entries", entries);
+		zipInfo.put("name", source.substring(source.lastIndexOf('/'), source.length()));
+		zipInfo.put("fullPath", source);
+		
+		System.out.println("entries:" +  entries);
+		System.out.println("name:" +  source.substring(source.lastIndexOf('/'), source.length()));
+		System.out.println("fullPath:" +  source);
+		
+		//return "{\"entries\":\"" + entries + "\", \"fullPath\":\"" + source + "\", \"name\":\"" + source.substring(source.lastIndexOf('/'), source.length()) + "\"}";
+		return zipInfo;
+	}
+	
+	/**
 	* Read the compressed file and returns InputStream obtained.
 	*
 	* @param zipFile		Zip/Rar filename to read.
@@ -271,41 +311,6 @@ public class Zip extends Plugin {
 		}
 
 		return false;
-	}
-
-	/**
-	* Info.
-	*
-	* @param source		The action to execute.
-	* @return		A ZipFileEntry structure.
-	*/
-	private String info(String source) throws JSONException, ZipException, IOException {
-
-		/*source = FileUtils.stripFileProtocol(source);
-
-		File sourceFile = new File(source);
-		ZipFile zipFile = new ZipFile(sourceFile);
-		
-		ZipFile a = new ZipFile(source);
-
-		JSONObject zipInfo = new JSONObject();
-
-		// Using FileUtils::getEntry to create an file info structure.
-		zipInfo = fu.getEntry(sourceFile);
-
-		zipInfo.put("entries", zipFile.size());
-		
-		return zipInfo;*/
-
-        int entries = this.getEntries(source);
-        
-		JSONObject zipInfo = new JSONObject();
-		
-		zipInfo.put("entries", entries);
-		zipInfo.put("name", source.substring(source.lastIndexOf('/'), source.length()));
-		zipInfo.put("fullPath", source);
-		
-		return "{\"entries\":\"" + entries + "\", \"fullPath\":\"" + source + "\", \"name\":\"" + source.substring(source.lastIndexOf('/'), source.length()) + "\"}";
 	}
 
 	/**
