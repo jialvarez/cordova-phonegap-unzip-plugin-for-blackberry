@@ -9,7 +9,7 @@ This plugin for BlackBerry devices allows:
 
 Usage:
 
-<pre>cd <dev_path>  && ant update -Dproject.path="<dev_path>\<project_name>" && cd <project_name> && copy <dev_path>\build\ext\cordova.1.7.0.jar <dev_path>\<project_path>\www\ext\ /Y && ant blackberry load-simulator</pre>
+<pre>cd &lt;dev_path&gt; && ant update -Dproject.path="&lt;dev_path&gt;\&lt;project_name&gt;" && cd &lt;project_name&gt; && copy &lt;dev_path&gt;\build\ext\cordova.1.7.0.jar &lt;dev_path&gt;\&lt;project_path&gt;\www\ext\ /Y && ant blackberry load-simulator</pre>
 
 Example of usage:
 
