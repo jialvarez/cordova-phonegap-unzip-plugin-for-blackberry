@@ -10,7 +10,6 @@ import javax.microedition.io.file.FileConnection;
 
 import org.apache.cordova.api.Plugin;
 import org.apache.cordova.api.PluginResult;
-import org.apache.cordova.file.File;
 
 import org.apache.cordova.json4j.JSONObject;
 import org.apache.cordova.json4j.JSONArray;
@@ -66,12 +65,11 @@ public class Zip extends Plugin {
 				String target = args.getString(1);
 
 				JSONObject ret = this.uncompress(source, target, callbackId);
-				ret.put("completed", true);
 
 				// Purge action only data structures.
 				//this.processedEntities.clear();
 
-				return new PluginResult(PluginResult.Status.OK, ret.toString());
+				return new PluginResult(PluginResult.Status.OK, ret);
 				/*
 				if (this.uncompress(source, target, callbackId)) {
 					return new PluginResult(status, result);
@@ -389,7 +387,12 @@ public class Zip extends Plugin {
 	private JSONObject publish(String file, int currentEntities, int totalEntities, String callbackId) throws JSONException, InterruptedException
 	{
 		JSONObject msg = new JSONObject();
-		msg.put("progress", currentEntities / totalEntities);
+		
+		float progress = (float) currentEntities / totalEntities;
+		progress = (int) (progress * 100);
+		msg.put("progress", progress);
+				
+		System.out.println("Progreso: " + String.valueOf(progress));
 		
 		boolean completed = totalEntities == currentEntities;
 		
@@ -401,8 +404,22 @@ public class Zip extends Plugin {
 		{
 			msg.put("completed", false);
 		}
+		
+        if (file.charAt(file.length() - 1) == '/')
+        {
+        	msg.put("isFile", false);
+        	msg.put("isDirectory", true);
+        }
+        else
+        {
+        	msg.put("isFile", true);
+        	msg.put("isDirectory", false);
+        }
 
-		PluginResult result = new PluginResult(PluginResult.Status.OK, msg.toString());
+        msg.put("name", file.substring(file.lastIndexOf('/'), file.length()));
+        msg.put("fullPath", file);
+
+		PluginResult result = new PluginResult(PluginResult.Status.OK, msg);
 		result.setKeepCallback(true);
 
         // Avoid to send the message "uncompress completed" twice.
