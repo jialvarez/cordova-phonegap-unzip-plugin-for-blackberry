@@ -3,7 +3,6 @@ package org.apache.cordova.zip;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Enumeration;
 
 import javax.microedition.io.Connection;
 import javax.microedition.io.Connector;
@@ -16,7 +15,6 @@ import org.apache.cordova.file.File;
 import org.apache.cordova.json4j.JSONObject;
 import org.apache.cordova.json4j.JSONArray;
 import org.apache.cordova.json4j.JSONException;
-import org.apache.cordova.util.FileUtils;
 
 import net.sf.zipme.ZipArchive;
 import net.sf.zipme.ZipException;
@@ -100,22 +98,6 @@ public class Zip extends Plugin {
 	*/
 	private JSONObject info(String source) throws JSONException, ZipException, IOException {
 
-		/*source = FileUtils.stripFileProtocol(source);
-
-		File sourceFile = new File(source);
-		ZipFile zipFile = new ZipFile(sourceFile);
-		
-		ZipFile a = new ZipFile(source);
-
-		JSONObject zipInfo = new JSONObject();
-
-		// Using FileUtils::getEntry to create an file info structure.
-		zipInfo = fu.getEntry(sourceFile);
-
-		zipInfo.put("entries", zipFile.size());
-		
-		return zipInfo;*/
-
         int entries = this.getEntries(source);
         
 		JSONObject zipInfo = new JSONObject();
@@ -128,7 +110,6 @@ public class Zip extends Plugin {
 		System.out.println("name:" +  source.substring(source.lastIndexOf('/'), source.length()));
 		System.out.println("fullPath:" +  source);
 		
-		//return "{\"entries\":\"" + entries + "\", \"fullPath\":\"" + source + "\", \"name\":\"" + source.substring(source.lastIndexOf('/'), source.length()) + "\"}";
 		return zipInfo;
 	}
 	
@@ -153,7 +134,7 @@ public class Zip extends Plugin {
         } 
         catch (Exception e) 
         {
-            System.out.println(LOG_TAG + " - Error in reding the File");
+            System.out.println(LOG_TAG + " - Error reading the File");
         }
         finally
         {
@@ -259,6 +240,7 @@ public class Zip extends Plugin {
                 }
         		
                 os.flush();
+                os.close();
         	}
     		catch (IOException e) 
     		{
@@ -340,7 +322,7 @@ public class Zip extends Plugin {
         }
 		catch (Exception e) 
         {
-          e.printStackTrace();
+			System.out.println(LOG_TAG + " Error getting number of entries: " + e.getMessage());
         }
 		finally
 		{
@@ -356,24 +338,27 @@ public class Zip extends Plugin {
 	* @param source		Sourcezip file location. (Local or remote)
 	* @param destination	Directory destination.
 	* @return		True.
+	 * @throws IOException 
 	*/
-	private JSONObject uncompress(String source, String target, String callbackId) throws JSONException, InterruptedException
+	private JSONObject uncompress(String source, String target, String callbackId) throws JSONException, InterruptedException, IOException
 	{
 		// 'target' would be 'file:///SDCard/test'
         int total_entries = 0;
         int current_entries = 0;
         JSONObject lastMsg = null;
-        
+
+        InputStream is = null;
+        ZipInputStream zis = null;
+        ZipEntry ze = null;
+
         try 
         {
+        	// get Zip size (in entries)
         	total_entries = getEntries(source);
-        	System.out.println("Zip size: " + String.valueOf(total_entries));
         	
     		//Rar or Zip File  Extraction
-            InputStream is = readRarFile(source);
-            ZipInputStream zis = new ZipInputStream(is);
-            ZipEntry ze;
-            File zfile;
+            is = readRarFile(source);
+            zis = new ZipInputStream(is);
             
             while ((ze = zis.getNextEntry()) != null) 
             {
@@ -385,52 +370,28 @@ public class Zip extends Plugin {
                 zis.closeEntry();
                 current_entries++;
                 
-                zfile = new File(ze.getName());
-                
                 lastMsg = this.publish(ze.getName(), current_entries, total_entries, callbackId);
             }
-            zis.close();
         } 
         catch (Exception e) 
         {
-          e.printStackTrace();
+          System.out.println(LOG_TAG + " Error uncompressing: " + e.getMessage());
         }
-		
+        finally
+        {
+            zis.close();
+        	is.close();
+        }
 		
 		return lastMsg;
 	}
 
 	private JSONObject publish(String file, int currentEntities, int totalEntities, String callbackId) throws JSONException, InterruptedException
 	{
-		/*JSONObject msg = new JSONObject();
-		int enum_size = 0;
-		
-        boolean completed = totalEntities == this.processedEntities.size();
-
-		// Using FileUtils::getEntry to create an file info structure.
-		for (Enumeration en = FileUtils.listDirectory(file); en.hasMoreElements();)
-		{
-			enum_size++;
-		}
-		
-		msg = fu.getEntry(file);
-
-		// Add new params for progress calculation.
-		msg.put("completed", completed);
-		msg.put("progress", this.processedEntities.size());
-
-		PluginResult result = new PluginResult(PluginResult.Status.OK, msg.toString());
-		result.setKeepCallback(true);
-
-        // Avoid to send the message "uncompress completed" twice.
-        // This message is sended in the execute method.
-        if (!completed) {
-		    success(result, callbackId);
-        }
-
-		Thread.sleep(100);*/
 		JSONObject msg = new JSONObject();
 		msg.put("progress", currentEntities / totalEntities);
+		
+		boolean completed = totalEntities == currentEntities;
 		
 		if (totalEntities == currentEntities)
 		{
@@ -446,7 +407,7 @@ public class Zip extends Plugin {
 
         // Avoid to send the message "uncompress completed" twice.
         // This message is sended in the execute method.
-        if (totalEntities == currentEntities) {
+        if (!completed) {
 		    success(result, callbackId);
         }
 
